@@ -1,0 +1,113 @@
+---
+title: "Coursera Practical Machine Learning Project"
+author: "Erin Raymond"
+date: "October 18, 2017"
+output: html_document
+---
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of this project is to predict the manner in which the subject did the exercise (the classe variable).
+
+## Data
+
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+
+```{r setup, include=FALSE}
+## Set working directory and libraries, download files
+
+setwd("F:/Coursera/Practical Machine Learning/CourseProject")
+
+library(tibble)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(rpart.plot)
+library(randomForest)
+
+```
+
+## Read data files and clean data
+
+### Read data files:
+
+Download training and test files if they do not exist, read files and convert data to tibbles
+```{r}
+if (file.exists("pml-training.csv") == TRUE){
+        training.data.raw <- (read.csv("pml-training.csv", stringsAsFactors = FALSE))
+        
+} else {download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+                      , destfile = "pml-training.csv")
+        training.data.raw <- (read.csv("pml-training.csv", stringsAsFactors = FALSE))
+}
+
+training.data.raw <- as_tibble(training.data.raw)
+
+if (file.exists("pml-testing.csv") == TRUE){
+        testing.data.raw <- (read.csv("pml-testing.csv", stringsAsFactors = FALSE))
+        
+} else {download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+                      , destfile = "pml-testing.csv")
+        testing.data.raw <- (read.csv("pml-testing.csv", stringsAsFactors = FALSE))
+}
+
+testing <- as_tibble(testing.data.raw)
+```
+
+### Data clean up: 
+Remove first 5 predictors
+
+```{r}
+training.data.raw <- training.data.raw[, -c(1:5)]
+```
+
+Remove predictors with near zero variance
+
+```{r}
+nzv <- nearZeroVar(training.data.raw)
+training.data <- training.data.raw[,-nzv]
+```
+
+Remove predictors with > 75% NA
+
+```{r}
+training.data <- training.data %>% 
+        select(which(colMeans(is.na(.)) < 0.75))
+```
+
+## Split training data into training and validation sets
+```{r}
+inTrain <- createDataPartition(y = training.data$classe, p = 0.7, list = FALSE)
+training <- training.data[inTrain,]
+validation <- training.data[-inTrain,]
+```
+
+## Classification Tree Model
+```{r}
+set.seed(1234)
+
+Mod1 <- train(classe ~ ., data = training, method = "rpart")
+prp(Mod1$finalModel)
+predMod1 <- predict(Mod1, validation)
+confusionMatrix(predMod1, validation$classe)
+```
+
+## Random Forest Model
+```{r}
+Mod2 <- train(classe ~ ., method = "rf", data = training, trControl = trainControl(method = "cv"), number = 3)
+plot(Mod2$finalModel)
+plot(Mod2)
+predMod2 <- predict(Mod2, validation)
+confusionMatrix(predMod2, validation$classe)
+```
+
+## Predict on Test Data Using Best Model
+The Random Forest Model gave an accuracy of 99.8%.  Therefore, the expected out of sample error is 0.2%.
+```{r}
+predict(Mod2, testing)
+```
